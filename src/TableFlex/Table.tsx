@@ -89,6 +89,35 @@ export const Table = (props: TableProps) => {
         };
     }, [changeActiveCell]);
 
+
+    function onMoveTableCell(e: MouseEvent) {
+        e.preventDefault();
+
+    //     if (clientXref.current === 0) {
+    //         clientXref.current = e.clientX;
+    //         const cellStyle = window.getComputedStyle(movingEl.current);
+    //         const pLeft = parseFloat(cellStyle.getPropertyValue('padding-left')) || 0;
+    //         const pRight = parseFloat(cellStyle.getPropertyValue('padding-right')) || 0;
+    //         startElementWidth.current = movingEl.current.offsetWidth - pLeft - pRight;
+    //         startElementWidth.current = startElementWidth.current >= 0
+    //             ? startElementWidth.current
+    //             : 0;
+    //     }
+
+    //     const curOffset = clientXref.current - e.clientX;
+    //     const calcWidth = startElementWidth.current - curOffset;
+
+    //     if (calcWidth >= minimumResizingWidth) {
+    //     const { cellIndex } = movingEl.current;
+
+    //     cellIndex >= 0 && [...(tableElement.tBodies[0]?.rows || [])].forEach((row) => {
+    //         row.cells[cellIndex].style.width = `${calcWidth}px`;
+    //     });
+
+    //     movingEl.current.style.width = `${calcWidth}px`;
+    // }
+    }
+
     function onMovingStart(e: MouseEvent) {
         const { target } = e;
         const htmlTarget = target as HTMLDivElement;
@@ -161,9 +190,9 @@ export const Table = (props: TableProps) => {
             tableCell.style.cursor = '';
         }
 
-        // if (movingEl.current) {
-        //     onMoveTableCell(e);
-        // }
+        if (movingEl.current) {
+            onMoveTableCell(e);
+        }
     }
 
     useEffect(() => {
