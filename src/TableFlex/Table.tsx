@@ -45,7 +45,7 @@ interface TableProps {
 const MIN_WIDTH = '60px';
 const MIN_HEIGHT = '30px';
 
-const caretOffset = 10;
+const caretOffset = 7;
 const minimumResizingWidth = 76;
 
 export const Table = (props: TableProps) => {
@@ -60,18 +60,18 @@ export const Table = (props: TableProps) => {
         activeCell,
         onChangeActiveCell,
     } = props;
+    const mousePosition = useRef(0);
+    const movingEl = useRef<HTMLDivElement | null>();
     const ref = useRef<HTMLDivElement | null>(null);
     const { t } = useTranslation();
 
     const changeActiveCell = useCallback(
         (e: MouseEvent) => {
-            const data = (e.target as HTMLDivElement).dataset;
-            const dataParent = (e.target as HTMLDivElement).parentElement
-                ?.dataset;
+            const htmlTarget = e.target as HTMLDivElement;
+            const data = (htmlTarget.closest('#tableCell') as HTMLDivElement)?.dataset;
+
             if (data.col && data.row) {
                 onSelectCell?.(data.col, data.row);
-            } else if (dataParent?.col && dataParent?.row) {
-                onSelectCell?.(dataParent.col, dataParent.row);
             }
         },
         [onSelectCell],
@@ -89,47 +89,94 @@ export const Table = (props: TableProps) => {
         };
     }, [changeActiveCell]);
 
-    // function onMovingStart(e: MouseEvent) {
-    //     const { target } = e;
-    //     const htmlTarget = target as HTMLTableCellElement;
-    //     let tableCell = htmlTarget.closest('th'); // TODO || htmlTarget?.closest('td');
+    function onMovingStart(e: MouseEvent) {
+        const { target } = e;
+        const htmlTarget = target as HTMLDivElement;
+        let tableCell = htmlTarget.closest('#tableCell') as HTMLDivElement;
 
-    //     if (tableCell && tableCell.nodeName === 'TD') {
-    //         tableCell = getCorrespondingTh(tableCell);
+        const elementRect = tableCell?.getBoundingClientRect();
+
+        const leftSpaceToBorder = mousePosition.current - (elementRect?.left || 0);
+        const rightSpaceToBorder = (elementRect?.right || 0) - mousePosition.current;
+
+        const isNearLeftBorder = leftSpaceToBorder < caretOffset;
+        const isNearRightBorder = rightSpaceToBorder < caretOffset;
+
+        if (isNearLeftBorder) {
+            const previousSibling = tableCell.previousElementSibling as HTMLDivElement;
+
+            if (previousSibling) {
+                movingEl.current = previousSibling;
+            }
+        }
+
+        if (isNearRightBorder) {
+            movingEl.current = tableCell;
+        }
+    }
+    // function resetElements() {
+    //     if (!movingElParent.current) {
+    //       return;
     //     }
 
-    //     const elementRect = tableCell.getBoundingClientRect();
-
-    //     const leftBorderSpacing = mousePosition.current - (elementRect.left || 0);
-    //     const rightBorderSpacing = (elementRect.right || 0) - mousePosition.current;
-
-    //     const isNearLeftBorder = leftBorderSpacing > -caretOffset && leftBorderSpacing < caretOffset;
-    //     const isNearRightBorder = rightBorderSpacing > -caretOffset && rightBorderSpacing < caretOffset;
-
-    //     if (isNearLeftBorder) {
-    //     const previousSibling = tableCell.previousElementSibling as HTMLTableCellElement;
-
-    //     if (previousSibling) {
-    //         movingEl.current = previousSibling;
-    //     }
-    //     }
-
-    //     if (isNearRightBorder) {
-    //         movingEl.current = tableCell;
-    //     }
+    //     [...(movingElParent.current?.cells || [])].forEach((cell) => {
+    //       cell.style.cursor = '';
+    //     });
     // }
 
-    // useEffect(() => {
-    //     // document.addEventListener('mousemove', onCursorWatch, true);
-    //     document.addEventListener('mousedown', onMovingStart, true);
-    //     // document.addEventListener('mouseup', onStopMoving);
+    function onCursorWatch(e: MouseEvent) {
+        const {
+            target,
+            clientX,
+        } = e;
+        const htmlTarget = target as HTMLElement;
 
-    //     return () => {
-    //         document.removeEventListener('mousedown', onMovingStart, true);
-    //         // document.removeEventListener('mousemove', onCursorWatch, true);
-    //         // document.removeEventListener('mouseup', onStopMoving);
-    //     };
-    // }, []);
+        mousePosition.current = clientX;
+        const tableCell: HTMLElement | null = htmlTarget.closest('#tableCell');
+
+        if (!tableCell) {
+            return;
+        }
+
+        const {
+            left,
+            right,
+        } = tableCell.getBoundingClientRect();
+
+        const leftSpaceToBorder = clientX - left;
+        const rightSpaceToBorder = right - clientX;
+
+        const isNearLeftBorder = leftSpaceToBorder < caretOffset;
+        const isNearRightBorder = rightSpaceToBorder < caretOffset;
+
+        const isNearVerticalBorder = isNearLeftBorder || isNearRightBorder;
+
+        if (isNearRightBorder && tableCell.parentElement?.lastElementChild === tableCell) {
+            return;
+        } else if (isNearLeftBorder && tableCell.parentElement?.querySelector('#tableCell') === tableCell) {
+            return;
+        } else if (isNearVerticalBorder) {
+            tableCell.style.cursor = 'col-resize';
+        } else {
+            tableCell.style.cursor = '';
+        }
+
+        // if (movingEl.current) {
+        //     onMoveTableCell(e);
+        // }
+    }
+
+    useEffect(() => {
+        document.addEventListener('mousemove', onCursorWatch, true);
+        document.addEventListener('mousedown', onMovingStart, true);
+        // document.addEventListener('mouseup', onStopMoving);
+
+        return () => {
+            document.removeEventListener('mousemove', onCursorWatch, true);
+            document.removeEventListener('mousedown', onMovingStart, true);
+            // document.removeEventListener('mouseup', onStopMoving);
+        };
+    }, []);
 
     if (isLoading) {
         return (
@@ -146,6 +193,7 @@ export const Table = (props: TableProps) => {
                     <div className={classNames(cls.rowHeader)}>
                         {columns?.map((el, index) => (
                             <div
+                                id="tableCell"
                                 key={index}
                                 className={classNames(cls.cellHeader, {
                                     [cls.lastHeaderCell]: index + 1 === columns.length,
@@ -173,6 +221,7 @@ export const Table = (props: TableProps) => {
                     >
                         {columns?.map((col, colIndex) => (
                             <div
+                                id="tableCell"
                                 key={colIndex}
                                 className={classNames(cls.cell, {
                                     [cls.lastCell]: colIndex + 1 === columns.length,
@@ -197,21 +246,14 @@ export const Table = (props: TableProps) => {
                                                 onClick={(e) => e.stopPropagation()}
                                             />
                                         ) : (
-                                            <div
-                                                data-row={rowIndex}
-                                                data-col={colIndex}
-                                            >
-                                                {
-                                                    row[col.field]?.render
-                                                        ? row[col.field].render(
-                                                                col,
-                                                                row,
-                                                            )
-                                                        : typeof row[col.field] === 'object'
-                                                            ? row[col.field]?.value
-                                                            : row[col.field]
-                                                }
-                                            </div>
+                                            row[col.field]?.render
+                                                ? row[col.field].render(
+                                                        col,
+                                                        row,
+                                                    )
+                                                : typeof row[col.field] === 'object'
+                                                    ? row[col.field]?.value
+                                                    : row[col.field]
                                         )
                                 }
                             </div>

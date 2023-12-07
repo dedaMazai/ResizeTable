@@ -15,6 +15,9 @@ const MOCK_TABLE = {
             "1": {
                 "value": "Текст"
             },
+            "11": {
+                "value": "Текст"
+            },
             "2": {
                 "value": "Текст"
             },
@@ -27,6 +30,9 @@ const MOCK_TABLE = {
             "1": {
                 "value": "Текст"
             },
+            "11": {
+                "value": "Текст"
+            },
             "2": {
                 "value": "Текст"
             },
@@ -37,6 +43,9 @@ const MOCK_TABLE = {
                 "value": "Текст"
             },
             "1": {
+                "value": "Текст"
+            },
+            "11": {
                 "value": "Текст"
             },
             "2": {
@@ -53,6 +62,11 @@ const MOCK_TABLE = {
         },
         {
             "field": "1",
+            "headerName": "Header",
+            "width": 150,
+        },
+        {
+            "field": "11",
             "headerName": "Header",
             "width": 150,
         },
@@ -82,15 +96,20 @@ const RootRouter = () => {
     }, [pathname])
 
     return (
-        <Table
-            columns={MOCK_TABLE.columns}
-            onSelectCell={(col, row) => setCell({ col, row })}
-            onChangeActiveCell={(value) => console.log(value)}
-            activeCell={cell}
-            hideHeader
-            rows={MOCK_TABLE.rows}
-            noData="No data"
-        />
+        <div style={{
+            width: '100%',
+            height: '100vh',
+        }}>
+            <Table
+                columns={MOCK_TABLE.columns}
+                onSelectCell={(col, row) => setCell({ col, row })}
+                onChangeActiveCell={(value) => console.log(value)}
+                activeCell={cell}
+                hideHeader
+                rows={MOCK_TABLE.rows}
+                noData="No data"
+            />
+        </div>
     )
 }
 
