@@ -38,15 +38,15 @@ interface TableProps {
     hideHeader?: boolean;
     noData?: string | ReactNode;
     onSelectCell?: (col: string, row: string) => void;
+    onChangeWidthCol?: (col: string, width: number) => void;
+    onChangeHeightRow?: (height: string, row: number) => void;
     onChangeActiveCell?: (value: string) => void;
     activeCell?: { col: string; row: string };
 }
 
-const MIN_WIDTH = '60px';
-const MIN_HEIGHT = '30px';
-
 const caretOffset = 7;
-const minimumResizingWidth = 76;
+const MIN_WIDTH = 60;
+const MIN_HEIGHT = 30;
 
 export const Table = (props: TableProps) => {
     const {
@@ -59,8 +59,17 @@ export const Table = (props: TableProps) => {
         hideHeader,
         activeCell,
         onChangeActiveCell,
+        onChangeWidthCol,
+        onChangeHeightRow,
     } = props;
-    const mousePosition = useRef(0);
+    const clientXref = useRef(0);
+    const startMovingWidthRef = useRef(0);
+    const mousePositionX = useRef(0);
+
+    const clientYref = useRef(0);
+    const startMovingHeightRef = useRef(0);
+    const mousePositionY = useRef(0);
+
     const movingEl = useRef<HTMLDivElement | null>();
     const ref = useRef<HTMLDivElement | null>(null);
     const { t } = useTranslation();
@@ -89,44 +98,19 @@ export const Table = (props: TableProps) => {
         };
     }, [changeActiveCell]);
 
-
-    function onMoveTableCell(e: MouseEvent) {
-        e.preventDefault();
-
-    //     if (clientXref.current === 0) {
-    //         clientXref.current = e.clientX;
-    //         const cellStyle = window.getComputedStyle(movingEl.current);
-    //         const pLeft = parseFloat(cellStyle.getPropertyValue('padding-left')) || 0;
-    //         const pRight = parseFloat(cellStyle.getPropertyValue('padding-right')) || 0;
-    //         startElementWidth.current = movingEl.current.offsetWidth - pLeft - pRight;
-    //         startElementWidth.current = startElementWidth.current >= 0
-    //             ? startElementWidth.current
-    //             : 0;
-    //     }
-
-    //     const curOffset = clientXref.current - e.clientX;
-    //     const calcWidth = startElementWidth.current - curOffset;
-
-    //     if (calcWidth >= minimumResizingWidth) {
-    //     const { cellIndex } = movingEl.current;
-
-    //     cellIndex >= 0 && [...(tableElement.tBodies[0]?.rows || [])].forEach((row) => {
-    //         row.cells[cellIndex].style.width = `${calcWidth}px`;
-    //     });
-
-    //     movingEl.current.style.width = `${calcWidth}px`;
-    // }
-    }
-
     function onMovingStart(e: MouseEvent) {
         const { target } = e;
         const htmlTarget = target as HTMLDivElement;
         let tableCell = htmlTarget.closest('#tableCell') as HTMLDivElement;
 
+        if (!tableCell) {
+            return;
+        }
+
         const elementRect = tableCell?.getBoundingClientRect();
 
-        const leftSpaceToBorder = mousePosition.current - (elementRect?.left || 0);
-        const rightSpaceToBorder = (elementRect?.right || 0) - mousePosition.current;
+        const leftSpaceToBorder = mousePositionX.current - (elementRect?.left || 0);
+        const rightSpaceToBorder = (elementRect?.right || 0) - mousePositionX.current;
 
         const isNearLeftBorder = leftSpaceToBorder < caretOffset;
         const isNearRightBorder = rightSpaceToBorder < caretOffset;
@@ -136,31 +120,26 @@ export const Table = (props: TableProps) => {
 
             if (previousSibling) {
                 movingEl.current = previousSibling;
+                clientXref.current = e.clientX;
+                startMovingWidthRef.current = previousSibling.offsetWidth;
             }
         }
 
         if (isNearRightBorder) {
             movingEl.current = tableCell;
+            clientXref.current = e.clientX;
+            startMovingWidthRef.current = tableCell.offsetWidth;
         }
     }
-    // function resetElements() {
-    //     if (!movingElParent.current) {
-    //       return;
-    //     }
 
-    //     [...(movingElParent.current?.cells || [])].forEach((cell) => {
-    //       cell.style.cursor = '';
-    //     });
-    // }
-
-    function onCursorWatch(e: MouseEvent) {
+    function changeWidth(e: MouseEvent) {
         const {
             target,
             clientX,
         } = e;
-        const htmlTarget = target as HTMLElement;
 
-        mousePosition.current = clientX;
+        mousePositionX.current = clientX;
+        const htmlTarget = target as HTMLElement;
         const tableCell: HTMLElement | null = htmlTarget.closest('#tableCell');
 
         if (!tableCell) {
@@ -186,24 +165,112 @@ export const Table = (props: TableProps) => {
             return;
         } else if (isNearVerticalBorder) {
             tableCell.style.cursor = 'col-resize';
+            tableCell.style.userSelect = 'none';
         } else {
             tableCell.style.cursor = '';
+            tableCell.style.userSelect = 'auto';
         }
 
         if (movingEl.current) {
-            onMoveTableCell(e);
+            const offset = e.clientX - clientXref.current;
+            const calcWidth = startMovingWidthRef.current + offset;
+            if (movingEl.current.dataset?.col) {
+                onChangeWidthCol?.(movingEl.current.dataset.col, calcWidth > MIN_WIDTH ? calcWidth : MIN_WIDTH)
+            }
         }
     }
 
+    function changeHeight(e: MouseEvent) {
+        const {
+            target,
+            clientY,
+            clientX,
+        } = e;
+
+        mousePositionY.current = clientY;
+        const htmlTarget = target as HTMLElement;
+        const tableRow: HTMLElement | null = htmlTarget.closest('#tableRow');
+
+        if (!tableRow) {
+            return;
+        }
+
+        const {
+            bottom,
+            top,
+        } = tableRow.getBoundingClientRect();
+
+        const topSpaceToBorder = clientY - top;
+        const bottomSpaceToBorder = bottom - clientY;
+
+        const isNearTopBorder = topSpaceToBorder < caretOffset;
+        const isNearBottomBorder = bottomSpaceToBorder < caretOffset;
+
+        const isNearHorizontalBorder = isNearTopBorder || isNearBottomBorder;
+
+        let isNearVerticalBorder = false;
+        const tableCell: HTMLElement | null = htmlTarget.closest('#tableCell');
+        if (tableCell) {
+            const {
+                left,
+                right,
+            } = tableCell.getBoundingClientRect();
+
+            const leftSpaceToBorder = clientX - left;
+            const rightSpaceToBorder = right - clientX;
+
+            const isNearLeftBorder = leftSpaceToBorder < caretOffset;
+            const isNearRightBorder = rightSpaceToBorder < caretOffset;
+
+            isNearVerticalBorder = isNearLeftBorder || isNearRightBorder;
+        }
+
+        if (isNearBottomBorder && tableRow.parentElement?.lastElementChild === tableRow) {
+            return;
+        } else if (isNearTopBorder && tableRow.parentElement?.querySelector('#tableRow') === tableRow) {
+            return;
+        } else if (isNearHorizontalBorder && !isNearVerticalBorder) {
+            tableRow.style.cursor = 'row-resize';
+            tableRow.style.userSelect = 'none';
+
+            if (tableCell) {
+                tableCell.style.cursor = 'row-resize';
+                tableCell.style.userSelect = 'none';
+            }
+        } else {
+            tableRow.style.cursor = '';
+            tableRow.style.userSelect = 'auto';
+        }
+
+        // if (movingEl.current) {
+        //     const offset = e.clientX - clientXref.current;
+        //     const calcWidth = startMovingWidthRef.current + offset;
+        //     if (movingEl.current.dataset?.col) {
+        //         onChangeWidthCol?.(movingEl.current.dataset.col, calcWidth > MIN_WIDTH ? calcWidth : MIN_WIDTH)
+        //     }
+        // }
+    }
+
+    function onCursorWatch(e: MouseEvent) {
+        changeWidth(e);
+        changeHeight(e);
+    }
+
+    function onStopMoving() {
+      clientXref.current = 0;
+      startMovingWidthRef.current = MIN_WIDTH;
+      movingEl.current = null;
+    }
+
     useEffect(() => {
-        document.addEventListener('mousemove', onCursorWatch, true);
-        document.addEventListener('mousedown', onMovingStart, true);
-        // document.addEventListener('mouseup', onStopMoving);
+        document.addEventListener('mousemove', onCursorWatch);
+        document.addEventListener('mousedown', onMovingStart);
+        document.addEventListener('mouseup', onStopMoving);
 
         return () => {
-            document.removeEventListener('mousemove', onCursorWatch, true);
-            document.removeEventListener('mousedown', onMovingStart, true);
-            // document.removeEventListener('mouseup', onStopMoving);
+            document.removeEventListener('mousemove', onCursorWatch);
+            document.removeEventListener('mousedown', onMovingStart);
+            document.removeEventListener('mouseup', onStopMoving);
         };
     }, []);
 
@@ -219,7 +286,9 @@ export const Table = (props: TableProps) => {
         <VStack gap="8" className={classNames(cls.tableWrapper, [className])}>
             <div className={classNames(cls.table)} ref={ref}>
                 {!hideHeader && (
-                    <div className={classNames(cls.rowHeader)}>
+                    <div
+                        className={classNames(cls.rowHeader)}
+                    >
                         {columns?.map((el, index) => (
                             <div
                                 id="tableCell"
@@ -240,6 +309,7 @@ export const Table = (props: TableProps) => {
                 )}
                 {!!rows?.length && rows.map((row, rowIndex) => (
                     <div
+                        id="tableRow"
                         key={row.id}
                         className={classNames(cls.row, {
                             [cls.rowLast]: rowIndex + 1 === rows.length,
