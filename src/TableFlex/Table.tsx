@@ -98,7 +98,7 @@ export const Table = (props: TableProps) => {
         };
     }, [changeActiveCell]);
 
-    function onMovingStart(e: MouseEvent) {
+    function startMovingWidth(e: MouseEvent) {
         const { target } = e;
         const htmlTarget = target as HTMLDivElement;
         let tableCell = htmlTarget.closest('#tableCell') as HTMLDivElement;
@@ -107,10 +107,13 @@ export const Table = (props: TableProps) => {
             return;
         }
 
-        const elementRect = tableCell?.getBoundingClientRect();
+        const {
+            left,
+            right,
+        } = tableCell.getBoundingClientRect();
 
-        const leftSpaceToBorder = mousePositionX.current - (elementRect?.left || 0);
-        const rightSpaceToBorder = (elementRect?.right || 0) - mousePositionX.current;
+        const leftSpaceToBorder = mousePositionX.current - left;
+        const rightSpaceToBorder = right - mousePositionX.current;
 
         const isNearLeftBorder = leftSpaceToBorder < caretOffset;
         const isNearRightBorder = rightSpaceToBorder < caretOffset;
@@ -130,6 +133,68 @@ export const Table = (props: TableProps) => {
             clientXref.current = e.clientX;
             startMovingWidthRef.current = tableCell.offsetWidth;
         }
+    }
+
+    function startMovingHeight(e: MouseEvent) {
+        const {
+            target,
+            clientX,
+        } = e;
+        const htmlTarget = target as HTMLDivElement;
+        let tableRow = htmlTarget.closest('#tableRow') as HTMLDivElement;
+
+        if (!tableRow) {
+            return;
+        }
+
+        const {
+            bottom,
+            top,
+        } = tableRow.getBoundingClientRect();
+
+        const topSpaceToBorder = mousePositionY.current - top;
+        const bottomSpaceToBorder = bottom - mousePositionY.current;
+
+        const isNearTopBorder = topSpaceToBorder < caretOffset;
+        const isNearBottomBorder = bottomSpaceToBorder < caretOffset;
+
+        let isNearVerticalBorder = false;
+        const tableCell: HTMLElement | null = htmlTarget.closest('#tableCell');
+        if (tableCell) {
+            const {
+                left,
+                right,
+            } = tableCell.getBoundingClientRect();
+
+            const leftSpaceToBorder = clientX - left;
+            const rightSpaceToBorder = right - clientX;
+
+            const isNearLeftBorder = leftSpaceToBorder < caretOffset;
+            const isNearRightBorder = rightSpaceToBorder < caretOffset;
+
+            isNearVerticalBorder = isNearLeftBorder || isNearRightBorder;
+        }
+
+        if (isNearTopBorder && !isNearVerticalBorder) {
+            const previousSibling = tableRow.previousElementSibling as HTMLDivElement;
+
+            if (previousSibling) {
+                movingEl.current = previousSibling;
+                clientYref.current = e.clientY;
+                startMovingHeightRef.current = previousSibling.offsetHeight;
+            }
+        }
+
+        if (isNearBottomBorder && !isNearVerticalBorder) {
+            movingEl.current = tableRow;
+            clientYref.current = e.clientY;
+            startMovingHeightRef.current = tableRow.offsetHeight;
+        }
+    }
+
+    function onMovingStart(e: MouseEvent) {
+        startMovingWidth(e);
+        startMovingHeight(e);
     }
 
     function changeWidth(e: MouseEvent) {
@@ -191,7 +256,7 @@ export const Table = (props: TableProps) => {
         const htmlTarget = target as HTMLElement;
         const tableRow: HTMLElement | null = htmlTarget.closest('#tableRow');
 
-        if (!tableRow) {
+        if (!tableRow || clientXref.current !== 0) {
             return;
         }
 
@@ -242,13 +307,13 @@ export const Table = (props: TableProps) => {
             tableRow.style.userSelect = 'auto';
         }
 
-        // if (movingEl.current) {
-        //     const offset = e.clientX - clientXref.current;
-        //     const calcWidth = startMovingWidthRef.current + offset;
-        //     if (movingEl.current.dataset?.col) {
-        //         onChangeWidthCol?.(movingEl.current.dataset.col, calcWidth > MIN_WIDTH ? calcWidth : MIN_WIDTH)
-        //     }
-        // }
+        if (movingEl.current) {
+            const offset = e.clientY - clientYref.current;
+            const calcHeight = startMovingHeightRef.current + offset;
+            if (movingEl.current.dataset?.row) {
+                onChangeHeightRow?.(movingEl.current.dataset.row, calcHeight > MIN_HEIGHT ? calcHeight : MIN_HEIGHT)
+            }
+        }
     }
 
     function onCursorWatch(e: MouseEvent) {
@@ -257,9 +322,11 @@ export const Table = (props: TableProps) => {
     }
 
     function onStopMoving() {
-      clientXref.current = 0;
-      startMovingWidthRef.current = MIN_WIDTH;
-      movingEl.current = null;
+        clientXref.current = 0;
+        clientYref.current = 0;
+        startMovingWidthRef.current = MIN_WIDTH;
+        startMovingHeightRef.current = MIN_HEIGHT;
+        movingEl.current = null;
     }
 
     useEffect(() => {
@@ -311,6 +378,7 @@ export const Table = (props: TableProps) => {
                     <div
                         id="tableRow"
                         key={row.id}
+                        data-row={rowIndex}
                         className={classNames(cls.row, {
                             [cls.rowLast]: rowIndex + 1 === rows.length,
                         })}
